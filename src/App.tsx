@@ -40,10 +40,10 @@ function App() {
     <ThemeProvider>
       <AmbientProvider>
         <ProfileProvider>
-          <div className="relative min-h-screen flex" dir="rtl">
+          <div className="relative min-h-screen flex overflow-x-hidden" dir="rtl">
             <AmbientBackground />
 
-            <div className="relative z-10 flex w-full">
+            <div className="relative z-10 flex w-full overflow-x-hidden">
               <Sidebar
                 active={section}
                 onNavigate={setSection}
@@ -51,14 +51,14 @@ function App() {
                 onClose={() => setSidebarOpen(false)}
               />
 
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
                 <Header
                   onOpenSidebar={() => setSidebarOpen(true)}
                   onSearch={() => {}}
                   onOpenSettings={() => setSection('settings')}
                 />
 
-                <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6 max-w-6xl mx-auto w-full">
+                <main className="relative z-10 flex-1 p-4 sm:p-6 pb-28 lg:pb-6 max-w-6xl mx-auto w-full overflow-x-hidden">
                   <div key={section} className="animate-fade-in">
                     {renderPage()}
                   </div>
@@ -66,9 +66,13 @@ function App() {
               </div>
             </div>
 
-            <BottomNav active={section} onNavigate={setSection} />
-            <AIAssistant />
-            <InstallBanner />
+            <div className="relative z-30">
+              <BottomNav active={section} onNavigate={setSection} />
+            </div>
+            <div className="relative z-20">
+              <AIAssistant />
+              <InstallBanner />
+            </div>
           </div>
         </ProfileProvider>
       </AmbientProvider>

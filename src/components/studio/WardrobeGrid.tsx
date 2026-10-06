@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Camera, X, Shirt, Calendar, Repeat, Tag, type LucideIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Camera, X, Shirt, Calendar, Repeat, Tag, Sparkles, Info, type LucideIcon } from 'lucide-react';
 
 export type CareStatus = 'clean_ironed' | 'clean_unironed' | 'needs_laundry' | 'at_laundry';
 
@@ -15,27 +15,33 @@ export interface WardrobeItem {
   name: string;
   category: WardrobeCategory;
   colors: string[];
+  secondaryColors?: string[];
   season: string;
   wearCount: number;
   outfitTag: string;
   emoji: string;
   careStatus: CareStatus;
+  brand?: string;
+  fabric?: string;
+  photo?: string;
 }
 
 export type WardrobeCategory = 'tops' | 'bottoms' | 'footwear' | 'outerwear' | 'accessories';
 
-export const CATEGORY_META: { id: WardrobeCategory; label: string; emoji: string }[] = [
-  { id: 'tops', label: 'قمصان وتيشيرتات', emoji: '👕' },
-  { id: 'bottoms', label: 'بنطال/شورت', emoji: '👖' },
-  { id: 'footwear', label: 'أحذية', emoji: '👟' },
-  { id: 'outerwear', label: 'جواكيت', emoji: '🧥' },
-  { id: 'accessories', label: 'إكسسوارات', emoji: '⌚' },
+export const CATEGORY_META: { id: WardrobeCategory; label: string; emoji: string; fabricLabel: string }[] = [
+  { id: 'tops', label: 'قمصان وتيشيرتات', emoji: '👕', fabricLabel: 'قطن' },
+  { id: 'bottoms', label: 'بنطال/شورت', emoji: '👖', fabricLabel: 'دينم' },
+  { id: 'footwear', label: 'أحذية', emoji: '👟', fabricLabel: 'جلد' },
+  { id: 'outerwear', label: 'جواكيت', emoji: '🧥', fabricLabel: 'بوليستر' },
+  { id: 'accessories', label: 'إكسسوارات', emoji: '⌚', fabricLabel: 'معدن' },
 ];
+
+const FABRIC_OPTIONS = ['قطن', 'دينم', 'جلد', 'بوليستر', 'صوف', 'كتان', 'حرير', 'معدن', 'بلاستيك'];
 
 const SEASONS = ['ربيع', 'صيف', 'خريف', 'شتاء', 'كل المواسم'];
 const OUTFIT_TAGS = ['يومي', 'رسمي', 'رياضي', 'كاجوال', 'مناسب'];
 
-const COLOR_SWATCHES = [
+export const COLOR_SWATCHES = [
   { name: 'أسود', hex: '#1e293b' },
   { name: 'أبيض', hex: '#f8fafc' },
   { name: 'أزرق', hex: '#3b82f6' },
@@ -49,14 +55,14 @@ const COLOR_SWATCHES = [
 ];
 
 const INITIAL_ITEMS: WardrobeItem[] = [
-  { id: '1', name: 'تيشيرت أبيض', category: 'tops', colors: ['أبيض'], season: 'صيف', wearCount: 24, outfitTag: 'كاجوال', emoji: '👕', careStatus: 'clean_ironed' },
-  { id: '2', name: 'جينز أزرق', category: 'bottoms', colors: ['أزرق'], season: 'كل المواسم', wearCount: 42, outfitTag: 'كاجوال', emoji: '👖', careStatus: 'clean_ironed' },
-  { id: '3', name: 'حذاء رياضي', category: 'footwear', colors: ['أسود', 'أبيض'], season: 'كل المواسم', wearCount: 56, outfitTag: 'رياضي', emoji: '👟', careStatus: 'needs_laundry' },
-  { id: '4', name: 'جاكيت شتوي', category: 'outerwear', colors: ['أسود'], season: 'شتاء', wearCount: 18, outfitTag: 'يومي', emoji: '🧥', careStatus: 'clean_unironed' },
-  { id: '5', name: 'ساعة يد', category: 'accessories', colors: ['بني'], season: 'كل المواسم', wearCount: 120, outfitTag: 'رسمي', emoji: '⌚', careStatus: 'clean_ironed' },
-  { id: '6', name: 'قميص كحلي', category: 'tops', colors: ['كحلي'], season: 'كل المواسم', wearCount: 12, outfitTag: 'رسمي', emoji: '👔', careStatus: 'clean_ironed' },
-  { id: '7', name: 'شورت بيج', category: 'bottoms', colors: ['بيج'], season: 'صيف', wearCount: 8, outfitTag: 'كاجوال', emoji: '🩳', careStatus: 'at_laundry' },
-  { id: '8', name: 'حذاء جلدي', category: 'footwear', colors: ['بني'], season: 'كل المواسم', wearCount: 15, outfitTag: 'رسمي', emoji: '👞', careStatus: 'clean_ironed' },
+  { id: '1', name: 'تيشيرت أبيض', category: 'tops', colors: ['أبيض'], secondaryColors: ['رمادي'], season: 'صيف', wearCount: 24, outfitTag: 'كاجوال', emoji: '👕', careStatus: 'clean_ironed', brand: 'Zara', fabric: 'قطن' },
+  { id: '2', name: 'جينز أزرق', category: 'bottoms', colors: ['أزرق'], secondaryColors: ['أبيض'], season: 'كل المواسم', wearCount: 42, outfitTag: 'كاجوال', emoji: '👖', careStatus: 'clean_ironed', brand: 'Levis', fabric: 'دينم' },
+  { id: '3', name: 'حذاء رياضي', category: 'footwear', colors: ['أسود', 'أبيض'], season: 'كل المواسم', wearCount: 56, outfitTag: 'رياضي', emoji: '👟', careStatus: 'needs_laundry', brand: 'Nike', fabric: 'بلاستيك' },
+  { id: '4', name: 'جاكيت شتوي', category: 'outerwear', colors: ['أسود'], season: 'شتاء', wearCount: 18, outfitTag: 'يومي', emoji: '🧥', careStatus: 'clean_unironed', brand: 'H&M', fabric: 'بوليستر' },
+  { id: '5', name: 'ساعة يد', category: 'accessories', colors: ['بني'], secondaryColors: ['ذهبي'], season: 'كل المواسم', wearCount: 120, outfitTag: 'رسمي', emoji: '⌚', careStatus: 'clean_ironed', brand: 'Casio', fabric: 'معدن' },
+  { id: '6', name: 'قميص كحلي', category: 'tops', colors: ['كحلي'], season: 'كل المواسم', wearCount: 12, outfitTag: 'رسمي', emoji: '👔', careStatus: 'clean_ironed', brand: 'Pull&Bear', fabric: 'قطن' },
+  { id: '7', name: 'شورت بيج', category: 'bottoms', colors: ['بيج'], season: 'صيف', wearCount: 8, outfitTag: 'كاجوال', emoji: '🩳', careStatus: 'at_laundry', brand: 'Uniqlo', fabric: 'كتان' },
+  { id: '8', name: 'حذاء جلدي', category: 'footwear', colors: ['بني'], season: 'كل المواسم', wearCount: 15, outfitTag: 'رسمي', emoji: '👞', careStatus: 'clean_ironed', brand: 'Clarks', fabric: 'جلد' },
 ];
 
 export default function WardrobeGrid() {
@@ -64,13 +70,20 @@ export default function WardrobeGrid() {
   const [filter, setFilter] = useState<WardrobeCategory | 'all'>('all');
   const [careFilter, setCareFilter] = useState<CareStatus | 'all'>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [detailItem, setDetailItem] = useState<WardrobeItem | null>(null);
+  const [autoIron, setAutoIron] = useState(true);
 
   const [name, setName] = useState('');
+  const [brand, setBrand] = useState('');
   const [cat, setCat] = useState<WardrobeCategory>('tops');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedSecondary, setSelectedSecondary] = useState<string[]>([]);
+  const [fabric, setFabric] = useState('قطن');
   const [season, setSeason] = useState('كل المواسم');
   const [outfitTag, setOutfitTag] = useState('كاجوال');
   const [careStatus, setCareStatus] = useState<CareStatus>('clean_ironed');
+  const [itemPhoto, setItemPhoto] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const filtered = items.filter((i) => {
     const matchCat = filter === 'all' || i.category === filter;
@@ -82,11 +95,39 @@ export default function WardrobeGrid() {
     setSelectedColors((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
   };
 
+  const toggleSecondary = (c: string) => {
+    setSelectedSecondary((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => setItemPhoto(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const add = () => {
     if (!name.trim()) return;
     const emoji = CATEGORY_META.find((c) => c.id === cat)?.emoji || '👕';
-    setItems((is) => [{ id: Date.now().toString(), name, category: cat, colors: selectedColors.length ? selectedColors : ['أسود'], season, wearCount: 0, outfitTag, emoji, careStatus }, ...is]);
-    setName(''); setSelectedColors([]); setSeason('كل المواسم'); setOutfitTag('كاجوال'); setCat('tops'); setCareStatus('clean_ironed');
+    setItems((is) => [{
+      id: Date.now().toString(),
+      name,
+      category: cat,
+      colors: selectedColors.length ? selectedColors : ['أسود'],
+      secondaryColors: selectedSecondary,
+      season,
+      wearCount: 0,
+      outfitTag,
+      emoji,
+      careStatus,
+      brand: brand.trim() || undefined,
+      fabric,
+      photo: itemPhoto || undefined,
+    }, ...is]);
+    setName(''); setBrand(''); setSelectedColors([]); setSelectedSecondary([]); setSeason('كل المواسم');
+    setOutfitTag('كاجوال'); setCat('tops'); setCareStatus('clean_ironed'); setFabric('قطن'); setItemPhoto(null);
     setShowAdd(false);
   };
 
@@ -101,6 +142,20 @@ export default function WardrobeGrid() {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Auto-ironing filter toggle */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className="text-accent-500" />
+          <p className="text-xs font-bold">تصفية وتنعيم تلقائي (AI)</p>
+        </div>
+        <button
+          onClick={() => setAutoIron(!autoIron)}
+          className={`relative w-11 h-6 rounded-full transition ${autoIron ? 'bg-accent-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+        >
+          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${autoIron ? 'left-0.5' : 'right-0.5'}`} />
+        </button>
+      </div>
+
       {/* Care status filter row */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         <button
@@ -155,33 +210,76 @@ export default function WardrobeGrid() {
         {filtered.map((item, i) => {
           const care = CARE_STATUS_META.find((c) => c.id === item.careStatus)!;
           return (
-            <div key={item.id} className="card card-hover p-4 animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
-              <div className="flex items-start justify-between mb-2">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-warning-500/10 to-brand-500/10 flex items-center justify-center text-2xl">
-                  {item.emoji}
-                </div>
+            <div key={item.id} className="card card-hover overflow-hidden animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+              {/* Clean white product area */}
+              <div
+                className="relative h-32 flex items-center justify-center cursor-pointer"
+                style={{ backgroundColor: '#ffffff' }}
+                onClick={() => setDetailItem(item)}
+              >
+                {item.photo ? (
+                  <img
+                    src={item.photo}
+                    alt={item.name}
+                    className={`w-full h-full object-contain p-2 transition-all duration-300 ${autoIron ? 'contrast-110 saturate-150 brightness-105' : ''}`}
+                    style={autoIron ? { filter: 'contrast(1.1) saturate(1.4) brightness(1.05) smooth(1)' } : undefined}
+                  />
+                ) : (
+                  <div className={`text-4xl transition-all duration-300 ${autoIron ? 'drop-shadow-sm' : 'opacity-80'}`}>
+                    {item.emoji}
+                  </div>
+                )}
+                {autoIron && (
+                  <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-accent-500/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                    <Sparkles size={8} />
+                    مكوي
+                  </div>
+                )}
                 <button
-                  onClick={() => cycleCareStatus(item.id)}
-                  className={`text-[9px] font-semibold px-2 py-1 rounded-full ${care.bg} ${care.color} flex items-center gap-1 transition hover:scale-105`}
-                  title="اضغط لتغيير الحالة"
+                  onClick={(e) => { e.stopPropagation(); setDetailItem(item); }}
+                  className="absolute top-1.5 left-1.5 p-1.5 rounded-lg bg-white/80 shadow-sm hover:bg-white transition"
+                  title="تفاصيل القطعة"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${care.dot}`} />
-                  {care.label}
+                  <Info size={12} className="text-slate-500" />
                 </button>
               </div>
-              <p className="font-semibold text-sm mb-1 truncate">{item.name}</p>
-              <div className="flex items-center gap-1 mb-2">
-                {item.colors.map((c) => {
-                  const sw = COLOR_SWATCHES.find((s) => s.name === c);
-                  return (
-                    <div key={c} className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-700" style={{ backgroundColor: sw?.hex || '#888' }} title={c} />
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <Tag2 icon={Calendar} label={item.season} />
-                <Tag2 icon={Repeat} label={`${item.wearCount}×`} />
-                <Tag2 icon={Tag} label={item.outfitTag} />
+
+              {/* Item info */}
+              <div className="p-3">
+                <div className="flex items-start justify-between mb-1.5">
+                  <p className="font-semibold text-sm truncate flex-1">{item.name}</p>
+                  <button
+                    onClick={() => cycleCareStatus(item.id)}
+                    className={`text-[9px] font-semibold px-2 py-1 rounded-full ${care.bg} ${care.color} flex items-center gap-1 transition hover:scale-105 shrink-0 mr-1`}
+                    title="اضغط لتغيير الحالة"
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${care.dot}`} />
+                    {care.label}
+                  </button>
+                </div>
+                {item.brand && (
+                  <p className="text-[10px] font-semibold text-slate-400 mb-1">{item.brand}</p>
+                )}
+                <div className="flex items-center gap-1 mb-2">
+                  {item.colors.map((c) => {
+                    const sw = COLOR_SWATCHES.find((s) => s.name === c);
+                    return (
+                      <div key={c} className="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-700" style={{ backgroundColor: sw?.hex || '#888' }} title={c} />
+                    );
+                  })}
+                  {item.secondaryColors?.map((c) => {
+                    const sw = COLOR_SWATCHES.find((s) => s.name === c);
+                    return (
+                      <div key={c} className="w-3 h-3 rounded-full border border-slate-200 dark:border-slate-700 opacity-60" style={{ backgroundColor: sw?.hex || '#888' }} title={`ثانوي: ${c}`} />
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Tag2 icon={Calendar} label={item.season} />
+                  <Tag2 icon={Repeat} label={`${item.wearCount}×`} />
+                  <Tag2 icon={Tag} label={item.outfitTag} />
+                  {item.fabric && <Tag2 icon={Shirt} label={item.fabric} />}
+                </div>
               </div>
             </div>
           );
@@ -192,6 +290,103 @@ export default function WardrobeGrid() {
         <div className="text-center py-12 text-slate-400 dark:text-slate-500">
           <Shirt size={32} className="mx-auto mb-2 opacity-50" />
           <p className="text-sm">لا توجد قطع مطابقة</p>
+        </div>
+      )}
+
+      {/* Detail / Metadata card modal */}
+      {detailItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setDetailItem(null)}>
+          <div className="card p-0 w-full max-w-sm overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            {/* Clean white product showcase */}
+            <div className="relative h-48 flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
+              {detailItem.photo ? (
+                <img src={detailItem.photo} alt={detailItem.name} className="w-full h-full object-contain p-4" style={{ filter: autoIron ? 'contrast(1.1) saturate(1.4) brightness(1.05)' : undefined }} />
+              ) : (
+                <div className="text-6xl">{detailItem.emoji}</div>
+              )}
+              <button onClick={() => setDetailItem(null)} className="absolute top-2 left-2 p-2 rounded-xl bg-white/80 shadow-sm hover:bg-white transition">
+                <X size={16} />
+              </button>
+              {autoIron && (
+                <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-accent-500/90 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                  <Sparkles size={10} />
+                  تصفية AI مفعّلة
+                </div>
+              )}
+            </div>
+
+            {/* Metadata */}
+            <div className="p-5 space-y-3">
+              <div>
+                <h3 className="font-bold text-base">{detailItem.name}</h3>
+                {detailItem.brand && (
+                  <p className="text-xs text-slate-400 mt-0.5">العلامة التجارية: <span className="font-semibold text-slate-600 dark:text-slate-300">{detailItem.brand}</span></p>
+                )}
+              </div>
+
+              {/* Color palette badge */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 mb-1.5">لوحة الألوان</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400">أساسي:</span>
+                    {detailItem.colors.map((c) => {
+                      const sw = COLOR_SWATCHES.find((s) => s.name === c);
+                      return (
+                        <div key={c} className="w-5 h-5 rounded-lg border-2 border-slate-200 dark:border-slate-700" style={{ backgroundColor: sw?.hex || '#888' }} title={c} />
+                      );
+                    })}
+                  </div>
+                  {detailItem.secondaryColors && detailItem.secondaryColors.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400">ثانوي:</span>
+                      {detailItem.secondaryColors.map((c) => {
+                        const sw = COLOR_SWATCHES.find((s) => s.name === c);
+                        return (
+                          <div key={c} className="w-4 h-4 rounded-lg border border-slate-200 dark:border-slate-700 opacity-70" style={{ backgroundColor: sw?.hex || '#888' }} title={c} />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Fabric + Category + Occasion tags */}
+              <div className="flex flex-wrap gap-2">
+                {detailItem.fabric && (
+                  <span className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                    <Shirt size={11} />
+                    {detailItem.fabric}
+                  </span>
+                )}
+                <span className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                  {CATEGORY_META.find((c) => c.id === detailItem.category)?.label}
+                </span>
+                <span className="text-[10px] font-semibold px-2.5 py-1.5 rounded-lg bg-accent-500/10 text-accent-600 dark:text-accent-400 flex items-center gap-1">
+                  <Tag size={11} />
+                  {detailItem.outfitTag}
+                </span>
+              </div>
+
+              {/* Extra info grid */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                  <p className="text-[9px] text-slate-400">الموسم</p>
+                  <p className="text-xs font-bold">{detailItem.season}</p>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                  <p className="text-[9px] text-slate-400">الارتداء</p>
+                  <p className="text-xs font-bold">{detailItem.wearCount}×</p>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                  <p className="text-[9px] text-slate-400">الحالة</p>
+                  <p className={`text-xs font-bold ${CARE_STATUS_META.find((c) => c.id === detailItem.careStatus)?.color}`}>
+                    {CARE_STATUS_META.find((c) => c.id === detailItem.careStatus)?.label}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -207,10 +402,20 @@ export default function WardrobeGrid() {
             </div>
 
             <div className="mb-4">
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center hover:border-warning-400 transition cursor-pointer">
-                <Camera size={28} className="mx-auto mb-2 text-slate-400" />
-                <p className="text-xs text-slate-500 dark:text-slate-400">التقط صورة أو ارفع صورة للقطعة</p>
-              </div>
+              <button
+                onClick={() => photoRef.current?.click()}
+                className="w-full border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center hover:border-warning-400 transition cursor-pointer overflow-hidden"
+              >
+                {itemPhoto ? (
+                  <img src={itemPhoto} alt="Item" className="w-full h-32 object-contain" style={{ backgroundColor: '#ffffff', borderRadius: '0.5rem' }} />
+                ) : (
+                  <>
+                    <Camera size={28} className="mx-auto mb-2 text-slate-400" />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">التقط صورة أو ارفع صورة للقطعة</p>
+                  </>
+                )}
+              </button>
+              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
             </div>
 
             <div className="space-y-3">
@@ -220,10 +425,15 @@ export default function WardrobeGrid() {
               </div>
 
               <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">العلامة التجارية (Brand)</label>
+                <input type="text" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="مثال: Zara, Nike, Levis" className="w-full rounded-xl bg-slate-100 dark:bg-slate-800 outline-none px-4 py-2.5 text-sm focus:ring-2 focus:ring-warning-400" />
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">الفئة</label>
                 <div className="grid grid-cols-3 gap-2">
                   {CATEGORY_META.map((c) => (
-                    <button key={c.id} onClick={() => setCat(c.id)} className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition ${cat === c.id ? 'border-warning-500 bg-warning-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
+                    <button key={c.id} onClick={() => { setCat(c.id); setFabric(c.fabricLabel); }} className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition ${cat === c.id ? 'border-warning-500 bg-warning-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
                       <span className="text-lg">{c.emoji}</span>
                       <span className="text-[10px] font-semibold">{c.label}</span>
                     </button>
@@ -232,13 +442,34 @@ export default function WardrobeGrid() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">الألوان</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">اللون الأساسي</label>
                 <div className="flex flex-wrap gap-2">
                   {COLOR_SWATCHES.map((s) => (
                     <button key={s.name} onClick={() => toggleColor(s.name)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 transition ${selectedColors.includes(s.name) ? 'border-warning-500 bg-warning-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
                       <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" style={{ backgroundColor: s.hex }} />
                       <span className="text-[10px] font-semibold">{s.name}</span>
                     </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">اللون الثانوي</label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_SWATCHES.map((s) => (
+                    <button key={s.name} onClick={() => toggleSecondary(s.name)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 transition ${selectedSecondary.includes(s.name) ? 'border-accent-500 bg-accent-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
+                      <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" style={{ backgroundColor: s.hex }} />
+                      <span className="text-[10px] font-semibold">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">الخامة / Fabric</label>
+                <div className="flex flex-wrap gap-2">
+                  {FABRIC_OPTIONS.map((f) => (
+                    <button key={f} onClick={() => setFabric(f)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition ${fabric === f ? 'border-warning-500 bg-warning-500/10 text-warning-600 dark:text-warning-400' : 'border-slate-200 dark:border-slate-700 text-slate-500'}`}>{f}</button>
                   ))}
                 </div>
               </div>

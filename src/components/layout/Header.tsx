@@ -29,7 +29,7 @@ export default function Header({ onOpenSidebar, onSearch, onOpenSettings }: Head
   }, [showThemes]);
 
   return (
-    <header className="sticky top-0 z-30 glass border-b">
+    <header className="sticky top-0 z-20 glass border-b">
       <div className="flex items-center gap-3 px-4 h-16 lg:px-6">
         {/* Mobile menu */}
         <button

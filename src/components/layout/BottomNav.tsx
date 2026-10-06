@@ -7,7 +7,7 @@ interface BottomNavProps {
 
 export default function BottomNav({ active, onNavigate }: BottomNavProps) {
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass border-t">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass border-t" style={{ zIndex: 30 }}>
       <div className="flex items-stretch justify-around px-1 py-1.5" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {NAV_SECTIONS.map((section) => {
           const Icon = section.icon;

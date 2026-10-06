@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   GraduationCap, Plus, CheckCircle2, Circle, Clock, AlertCircle,
   Sparkles, Zap, MapPin, Navigation, TrendingUp, Calendar, Award,
-  BatteryHigh, BatteryMedium, BatteryLow, X,
+  Battery, X, Trash2, Edit3, Crosshair, MapPinCheck,
 } from 'lucide-react';
 
 interface Task {
@@ -16,13 +16,29 @@ interface Task {
   location?: string;
 }
 
-const LOCATIONS = [
-  { id: 'university', label: 'جامعة آل البيت', emoji: '🎓' },
-  { id: 'home', label: 'المنزل', emoji: '🏠' },
-  { id: 'gym', label: 'النادي الرياضي', emoji: '🏋️' },
-  { id: 'library', label: 'المكتبة', emoji: '📚' },
-  { id: 'laundry', label: 'المغسلة', emoji: '🧺' },
-  { id: 'cafe', label: 'المقهى', emoji: '☕' },
+interface CustomLocation {
+  id: string;
+  label: string;
+  emoji: string;
+  lat: number | null;
+  lng: number | null;
+  radius: number;
+  custom: boolean;
+}
+
+const DEFAULT_LOCATIONS: CustomLocation[] = [
+  { id: 'university', label: 'جامعة آل البيت', emoji: '🎓', lat: 32.55, lng: 36.18, radius: 200, custom: false },
+  { id: 'home', label: 'المنزل', emoji: '🏠', lat: null, lng: null, radius: 50, custom: false },
+  { id: 'gym', label: 'النادي الرياضي', emoji: '🏋️', lat: null, lng: null, radius: 100, custom: false },
+  { id: 'library', label: 'المكتبة', emoji: '📚', lat: null, lng: null, radius: 80, custom: false },
+  { id: 'laundry', label: 'المغسلة', emoji: '🧺', lat: null, lng: null, radius: 50, custom: false },
+  { id: 'cafe', label: 'المقهى', emoji: '☕', lat: null, lng: null, radius: 50, custom: false },
+];
+
+const EMOJI_CHOICES = [
+  '🎓', '🏠', '🏋️', '📚', '🧺', '☕', '🏥', '🔬', '💻', '📝',
+  '🏫', '🪑', '🛏️', '🍽️', '🌳', '🚗', '✈️', '🏪', '🏛️', '🕌',
+  '🍔', '🍕', '🏀', '⚽', '🎨', '🎵', '📱', '💡', '🔧', '🧪',
 ];
 
 const PRIORITY_META = {
@@ -32,9 +48,9 @@ const PRIORITY_META = {
 };
 
 const ENERGY_META = {
-  high: { label: 'عالية', icon: BatteryHigh, color: 'text-success-500', bg: 'bg-success-500/10' },
-  medium: { label: 'متوسطة', icon: BatteryMedium, color: 'text-warning-500', bg: 'bg-warning-500/10' },
-  low: { label: 'منخفضة', icon: BatteryLow, color: 'text-error-500', bg: 'bg-error-500/10' },
+  high: { label: 'عالية', icon: Battery, color: 'text-success-500', bg: 'bg-success-500/10' },
+  medium: { label: 'متوسطة', icon: Battery, color: 'text-warning-500', bg: 'bg-warning-500/10' },
+  low: { label: 'منخفضة', icon: Battery, color: 'text-error-500', bg: 'bg-error-500/10' },
 };
 
 const INITIAL: Task[] = [
@@ -86,17 +102,58 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
 }
 
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+const TASKS_KEY = 'academic_tasks';
+const LOCATIONS_KEY = 'academic_locations';
+
+function loadTasks(): Task[] {
+  try {
+    const raw = localStorage.getItem(TASKS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return INITIAL;
+}
+
+function loadLocations(): CustomLocation[] {
+  try {
+    const raw = localStorage.getItem(LOCATIONS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return DEFAULT_LOCATIONS;
+}
+
 export default function AcademicPage() {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL);
+  const [tasks, setTasks] = useState<Task[]>(loadTasks);
   const [newTitle, setNewTitle] = useState('');
   const [newLocation, setNewLocation] = useState<string>('home');
   const [newEnergy, setNewEnergy] = useState<'high' | 'medium' | 'low'>('medium');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
-  const [showLocationAlert, setShowLocationAlert] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<string | null>(null);
   const [sortByEnergy, setSortByEnergy] = useState(false);
   const [userEnergy, setUserEnergy] = useState<'high' | 'medium' | 'low'>('high');
+
+  // Location engine state
+  const [locations, setLocations] = useState<CustomLocation[]>(loadLocations);
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
+  const [showLocationAlert, setShowLocationAlert] = useState(false);
+  const [showLocModal, setShowLocModal] = useState(false);
+  const [editingLoc, setEditingLoc] = useState<CustomLocation | null>(null);
+  const [locName, setLocName] = useState('');
+  const [locEmoji, setLocEmoji] = useState('📍');
+  const [locRadius, setLocRadius] = useState('100');
+  const [locLat, setLocLat] = useState<number | null>(null);
+  const [locLng, setLocLng] = useState<number | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [showManageLoc, setShowManageLoc] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // GPA state
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
@@ -107,6 +164,10 @@ export default function AcademicPage() {
 
   // Exams
   const [exams] = useState<Exam[]>(INITIAL_EXAMS);
+
+  // localStorage persistence
+  useEffect(() => { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); }, [tasks]);
+  useEffect(() => { localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations)); }, [locations]);
 
   const toggle = (id: string) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
 
@@ -138,32 +199,141 @@ export default function AcademicPage() {
     setShowSuggestions(false);
   };
 
-  const detectLocation = () => {
+  // --- Location engine ---
+
+  const openCreateLoc = () => {
+    setEditingLoc(null);
+    setLocName('');
+    setLocEmoji('📍');
+    setLocRadius('100');
+    setLocLat(null);
+    setLocLng(null);
+    setGpsError(null);
+    setShowLocModal(true);
+  };
+
+  const openEditLoc = (loc: CustomLocation) => {
+    setEditingLoc(loc);
+    setLocName(loc.label);
+    setLocEmoji(loc.emoji);
+    setLocRadius(String(loc.radius));
+    setLocLat(loc.lat);
+    setLocLng(loc.lng);
+    setGpsError(null);
+    setShowLocModal(true);
+  };
+
+  const captureGps = () => {
     if (!navigator.geolocation) {
-      setShowLocationAlert(true);
-      setCurrentLocation('university');
+      setGpsError('المتصفح لا يدعم تحديد الموقع');
       return;
     }
+    setGpsLoading(true);
+    setGpsError(null);
     navigator.geolocation.getCurrentPosition(
-      () => {
-        setCurrentLocation('university');
-        setShowLocationAlert(true);
+      (pos) => {
+        setLocLat(pos.coords.latitude);
+        setLocLng(pos.coords.longitude);
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsLoading(false);
       },
-      () => {
-        setCurrentLocation('university');
-        setShowLocationAlert(true);
+      (err) => {
+        setGpsError(
+          err.code === err.PERMISSION_DENIED ? 'تم رفض إذن الموقع' :
+          err.code === err.POSITION_UNAVAILABLE ? 'تعذر تحديد الموقع' :
+          'انتهى وقت الانتظار'
+        );
+        setGpsLoading(false);
       },
-      { timeout: 5000 },
+      { enableHighAccuracy: true, timeout: 8000 },
     );
   };
 
-  const selectLocation = (locId: string) => {
-    setCurrentLocation(locId);
+  const saveLoc = () => {
+    if (!locName.trim()) return;
+    if (editingLoc) {
+      setLocations((ls) => ls.map((l) => l.id === editingLoc.id ? {
+        ...l, label: locName, emoji: locEmoji, radius: Number(locRadius) || 100, lat: locLat, lng: locLng,
+      } : l));
+    } else {
+      const newLoc: CustomLocation = {
+        id: `loc_${Date.now()}`,
+        label: locName,
+        emoji: locEmoji,
+        lat: locLat,
+        lng: locLng,
+        radius: Number(locRadius) || 100,
+        custom: true,
+      };
+      setLocations((ls) => [...ls, newLoc]);
+    }
+    setShowLocModal(false);
+  };
+
+  const deleteLoc = (id: string) => {
+    setLocations((ls) => ls.filter((l) => l.id !== id));
+    if (activeLocationId === id) {
+      setActiveLocationId(null);
+      setShowLocationAlert(false);
+    }
+  };
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsError('المتصفح لا يدعم تحديد الموقع');
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUserCoords({ lat: latitude, lng: longitude });
+        setGpsLoading(false);
+        const matched = findNearestLocation(latitude, longitude);
+        if (matched) {
+          setActiveLocationId(matched.id);
+          setShowLocationAlert(true);
+        } else {
+          setGpsError('لم يتم العثور على موقع مطابق ضمن النطاق');
+        }
+      },
+      () => {
+        setGpsLoading(false);
+        setGpsError('تعذر تحديد موقعك الحالي');
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
+
+  const findNearestLocation = (lat: number, lng: number): CustomLocation | null => {
+    let nearest: CustomLocation | null = null;
+    let minDist = Infinity;
+    for (const loc of locations) {
+      if (loc.lat === null || loc.lng === null) continue;
+      const dist = haversineMeters(lat, lng, loc.lat, loc.lng);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = loc;
+      }
+    }
+    if (nearest && minDist <= nearest.radius) return nearest;
+    return null;
+  };
+
+  const imHereNow = (locId: string) => {
+    setActiveLocationId(locId);
     setShowLocationAlert(true);
   };
 
-  const locationTasks = currentLocation
-    ? tasks.filter((t) => t.location === currentLocation && !t.done)
+  const selectLocation = (locId: string) => {
+    setActiveLocationId(locId);
+    setShowLocationAlert(true);
+  };
+
+  const activeLocation = activeLocationId ? locations.find((l) => l.id === activeLocationId) : null;
+  const locationTasks = activeLocationId
+    ? tasks.filter((t) => t.location === activeLocationId && !t.done)
     : [];
 
   const energyOrder = { high: 0, medium: 1, low: 2 };
@@ -203,18 +373,33 @@ export default function AcademicPage() {
 
       {/* Progress + Energy selector */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="card p-5 animate-fade-up">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-sm">تقدم اليوم</h2>
-            <span className="text-2xl font-extrabold text-brand-500">{progress}%</span>
-          </div>
-          <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-700" style={{ width: `${progress}%` }} />
+        <div className="card p-5 animate-fade-up flex flex-col items-center">
+          <h2 className="font-bold text-sm mb-3 self-start">تقدم اليوم</h2>
+          <div className="relative w-28 h-28">
+            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="42" fill="none" strokeWidth="8" className="stroke-slate-100 dark:stroke-slate-800" />
+              <circle
+                cx="50" cy="50" r="42" fill="none" strokeWidth="8" strokeLinecap="round"
+                stroke="url(#progressGrad)"
+                strokeDasharray={2 * Math.PI * 42}
+                strokeDashoffset={2 * Math.PI * 42 * (1 - progress / 100)}
+                className="transition-all duration-700"
+              />
+              <defs>
+                <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-extrabold text-brand-500">{progress}%</span>
+              <span className="text-[9px] text-slate-400">{done}/{total}</span>
+            </div>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{done} من {total} مهمة مكتملة</p>
         </div>
 
-        {/* Energy level selector */}
         <div className="card p-5 animate-fade-up" style={{ animationDelay: '60ms' }}>
           <div className="flex items-center gap-2 mb-3">
             <Zap size={18} className="text-accent-500" />
@@ -244,7 +429,6 @@ export default function AcademicPage() {
 
       {/* GPA Calculator + Exam Countdown */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* GPA */}
         <div className="card p-5 animate-fade-up">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -285,7 +469,6 @@ export default function AcademicPage() {
           )}
         </div>
 
-        {/* Exam Countdown */}
         <div className="card p-5 animate-fade-up" style={{ animationDelay: '60ms' }}>
           <div className="flex items-center gap-2 mb-3">
             <Calendar size={18} className="text-error-500" />
@@ -312,42 +495,124 @@ export default function AcademicPage() {
         </div>
       </div>
 
-      {/* Location tagging */}
+      {/* Location tagging — upgraded engine */}
       <div className="card p-4 animate-fade-up">
-        <div className="flex items-center gap-2 mb-3">
-          <MapPin size={18} className="text-brand-500" />
-          <p className="text-sm font-bold">موقعك الحالي</p>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <MapPin size={18} className="text-brand-500" />
+            <p className="text-sm font-bold">موقعك الحالي</p>
+          </div>
+          <button
+            onClick={() => setShowManageLoc(!showManageLoc)}
+            className="text-[10px] font-semibold text-brand-500 hover:text-brand-600 transition flex items-center gap-1"
+          >
+            <Edit3 size={11} />
+            إدارة المواقع
+          </button>
         </div>
+
+        {/* Location chips */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
-          {LOCATIONS.map((loc) => (
+          {locations.map((loc) => (
             <button
               key={loc.id}
               onClick={() => selectLocation(loc.id)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${currentLocation === loc.id ? 'bg-brand-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${activeLocationId === loc.id ? 'bg-brand-500 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
             >
               <span>{loc.emoji}</span>
               {loc.label}
+              {loc.lat !== null && <Crosshair size={10} className="opacity-60" />}
             </button>
           ))}
+          {/* Add new location button */}
+          <button
+            onClick={openCreateLoc}
+            className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border-2 border-dashed border-brand-300 dark:border-brand-700 text-brand-500 hover:bg-brand-500/5 transition"
+          >
+            <Plus size={14} />
+            إضافة موقع جديد
+          </button>
         </div>
+
+        {/* GPS detect button */}
         <button
           onClick={detectLocation}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-semibold py-2.5 transition"
+          disabled={gpsLoading}
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-semibold py-2.5 transition disabled:opacity-50"
         >
-          <Navigation size={16} className="text-brand-500" />
-          اكتشف موقعي تلقائياً
+          <Navigation size={16} className={`text-brand-500 ${gpsLoading ? 'animate-pulse' : ''}`} />
+          {gpsLoading ? 'جاري تحديد موقعك...' : 'تحديد موقعي الحالي الآن (GPS)'}
         </button>
+
+        {gpsError && (
+          <p className="text-[10px] text-error-500 mt-2 text-center">{gpsError}</p>
+        )}
+
+        {userCoords && !gpsError && (
+          <p className="text-[10px] text-slate-400 mt-2 text-center">
+            إحداثياتك: {userCoords.lat.toFixed(4)}، {userCoords.lng.toFixed(4)}
+          </p>
+        )}
       </div>
 
-      {/* Location alert card */}
-      {showLocationAlert && currentLocation && locationTasks.length > 0 && (
+      {/* Manage locations panel */}
+      {showManageLoc && (
+        <div className="card p-4 animate-scale-in space-y-2">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-bold">إدارة المواقع</p>
+            <button onClick={() => setShowManageLoc(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+              <X size={16} />
+            </button>
+          </div>
+          {locations.map((loc) => (
+            <div key={loc.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+              <span className="text-lg">{loc.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold truncate">{loc.label}</p>
+                <p className="text-[9px] text-slate-400">
+                  {loc.lat !== null ? `GPS: ${loc.lat.toFixed(3)}، ${loc.lng?.toFixed(3)} — نطاق ${loc.radius}م` : 'بدون إحداثيات GPS'}
+                </p>
+              </div>
+              <button
+                onClick={() => openEditLoc(loc)}
+                className="p-1.5 rounded-lg bg-white dark:bg-slate-800 hover:text-brand-500 transition"
+                title="تعديل"
+              >
+                <Edit3 size={14} />
+              </button>
+              {loc.custom && (
+                <button
+                  onClick={() => deleteLoc(loc.id)}
+                  className="p-1.5 rounded-lg bg-white dark:bg-slate-800 hover:text-error-500 transition"
+                  title="حذف"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={openCreateLoc}
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-brand-300 dark:border-brand-700 text-brand-500 text-xs font-semibold py-2.5 hover:bg-brand-500/5 transition"
+          >
+            <Plus size={14} />
+            إضافة موقع جديد
+          </button>
+        </div>
+      )}
+
+      {/* Location-triggered task card */}
+      {showLocationAlert && activeLocation && locationTasks.length > 0 && (
         <div className="card p-5 animate-scale-in bg-gradient-to-br from-brand-500/10 to-accent-500/10 border-brand-500/20">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">{LOCATIONS.find((l) => l.id === currentLocation)?.emoji}</span>
+              <span className="text-2xl">{activeLocation.emoji}</span>
               <div>
-                <p className="font-bold text-sm">مهام في {LOCATIONS.find((l) => l.id === currentLocation)?.label}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">{locationTasks.length} مهمة نشطة هنا</p>
+                <p className="font-bold text-sm">مهام في {activeLocation.label}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {locationTasks.length} مهمة نشطة هنا
+                  {activeLocation.lat !== null && ' — تم تأكيد الموقع'}
+                </p>
               </div>
             </div>
             <button onClick={() => setShowLocationAlert(false)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -355,21 +620,49 @@ export default function AcademicPage() {
             </button>
           </div>
           <div className="space-y-2">
-            {locationTasks.map((task) => (
-              <div key={task.id} className="flex items-center gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/30">
-                <button onClick={() => toggle(task.id)} className="shrink-0">
-                  <Circle size={18} className="text-slate-300 dark:text-slate-600" />
-                </button>
-                <span className="flex-1 text-sm font-semibold">{task.title}</span>
-                <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                  <Clock size={10} />
-                  {task.due}
-                </span>
-              </div>
-            ))}
+            {locationTasks.map((task) => {
+              const meta = PRIORITY_META[task.priority];
+              return (
+                <div key={task.id} className="flex items-center gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/30">
+                  <button onClick={() => toggle(task.id)} className="shrink-0">
+                    <Circle size={18} className="text-slate-300 dark:text-slate-600" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold block truncate">{task.title}</span>
+                    {task.subject && <span className="text-[9px] font-semibold text-slate-400">{task.subject}</span>}
+                  </div>
+                  <span className={`text-[10px] ${meta.color} shrink-0`}>{meta.label}</span>
+                  {task.due && (
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5 shrink-0">
+                      <Clock size={10} />
+                      {task.due}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* "I'm here now" quick buttons */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        {locations.map((loc) => (
+          <button
+            key={loc.id}
+            onClick={() => imHereNow(loc.id)}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition border ${
+              activeLocationId === loc.id && showLocationAlert
+                ? 'bg-brand-500 text-white border-brand-500'
+                : 'bg-white dark:bg-slate-800 text-brand-500 border-brand-200 dark:border-brand-700 hover:bg-brand-500/5'
+            }`}
+          >
+            <MapPinCheck size={12} />
+            <span>{loc.emoji}</span>
+            <span>أنا في {loc.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* AI Suggest Tasks */}
       <div className="card p-4 animate-fade-up bg-gradient-to-br from-accent-500/5 to-transparent">
@@ -396,6 +689,7 @@ export default function AcademicPage() {
           <div className="mt-3 space-y-2 animate-scale-in">
             {SUGGESTED_TASKS.map((task, i) => {
               const meta = PRIORITY_META[task.priority];
+              const taskLoc = task.location ? locations.find((l) => l.id === task.location) : null;
               return (
                 <div key={i} className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="flex-1 min-w-0">
@@ -403,7 +697,7 @@ export default function AcademicPage() {
                     <div className="flex items-center gap-2 mt-0.5">
                       {task.subject && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{task.subject}</span>}
                       <span className={`text-[10px] ${meta.color}`}>{meta.label}</span>
-                      {task.location && <span className="text-[10px] text-slate-400">{LOCATIONS.find((l) => l.id === task.location)?.emoji} {LOCATIONS.find((l) => l.id === task.location)?.label}</span>}
+                      {taskLoc && <span className="text-[10px] text-slate-400">{taskLoc.emoji} {taskLoc.label}</span>}
                     </div>
                   </div>
                   <button onClick={() => addSuggested(task)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-500/20 transition text-xs font-semibold shrink-0">
@@ -433,7 +727,6 @@ export default function AcademicPage() {
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Location selector for new task */}
             <div className="flex items-center gap-1">
               <MapPin size={14} className="text-slate-400" />
               <select
@@ -441,10 +734,9 @@ export default function AcademicPage() {
                 onChange={(e) => setNewLocation(e.target.value)}
                 className="rounded-lg bg-slate-100 dark:bg-slate-800 outline-none px-2 py-1.5 text-xs focus:ring-2 focus:ring-brand-400"
               >
-                {LOCATIONS.map((l) => <option key={l.id} value={l.id}>{l.emoji} {l.label}</option>)}
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.emoji} {l.label}</option>)}
               </select>
             </div>
-            {/* Energy selector for new task */}
             <div className="flex items-center gap-1">
               <Zap size={14} className="text-slate-400" />
               <div className="flex gap-1">
@@ -480,7 +772,7 @@ export default function AcademicPage() {
         {displayTasks.map((task, i) => {
           const meta = PRIORITY_META[task.priority];
           const PIcon = meta.icon;
-          const taskLoc = task.location ? LOCATIONS.find((l) => l.id === task.location) : null;
+          const taskLoc = task.location ? locations.find((l) => l.id === task.location) : null;
           return (
             <div key={task.id} className={`card p-4 flex items-center gap-3 animate-fade-up ${task.done ? 'opacity-60' : ''}`} style={{ animationDelay: `${i * 60}ms` }}>
               <button onClick={() => toggle(task.id)} className="shrink-0 transition">
@@ -509,6 +801,97 @@ export default function AcademicPage() {
           );
         })}
       </div>
+
+      {/* Create / Edit location modal */}
+      {showLocModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setShowLocModal(false)}>
+          <div className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">{editingLoc ? 'تعديل الموقع' : 'إضافة موقع جديد'}</h3>
+              <button onClick={() => setShowLocModal(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">اسم الموقع</label>
+                <input
+                  type="text"
+                  value={locName}
+                  onChange={(e) => setLocName(e.target.value)}
+                  placeholder="مثال: مختبر الأشعة، سكن الطلاب، كافيه العلوم"
+                  className="w-full rounded-xl bg-slate-100 dark:bg-slate-800 outline-none px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+
+              {/* Emoji picker */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">اختر أيقونة</label>
+                <div className="grid grid-cols-10 gap-1.5">
+                  {EMOJI_CHOICES.map((em) => (
+                    <button
+                      key={em}
+                      onClick={() => setLocEmoji(em)}
+                      className={`flex items-center justify-center p-1.5 rounded-lg text-lg transition ${locEmoji === em ? 'bg-brand-500/15 ring-2 ring-brand-400' : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Radius */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">نطاق الموقع (متر) — اختياري</label>
+                <input
+                  type="number"
+                  value={locRadius}
+                  onChange={(e) => setLocRadius(e.target.value)}
+                  placeholder="100"
+                  min="10"
+                  max="2000"
+                  className="w-full rounded-xl bg-slate-100 dark:bg-slate-800 outline-none px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+
+              {/* GPS capture */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">إحداثيات GPS</label>
+                <button
+                  onClick={captureGps}
+                  disabled={gpsLoading}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-500/20 transition text-sm font-semibold py-2.5 disabled:opacity-50"
+                >
+                  <Crosshair size={16} className={gpsLoading ? 'animate-pulse' : ''} />
+                  {gpsLoading ? 'جاري التحديد...' : 'تحديد موقعي الحالي الآن (GPS)'}
+                </button>
+                {locLat !== null && locLng !== null && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-success-500/10 flex items-center gap-2">
+                    <MapPin size={14} className="text-success-500 shrink-0" />
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      تم الحفظ: {locLat.toFixed(4)}، {locLng.toFixed(4)}
+                    </p>
+                  </div>
+                )}
+                {gpsError && (
+                  <p className="text-[10px] text-error-500 mt-2">{gpsError}</p>
+                )}
+              </div>
+
+              {/* Save */}
+              <button
+                onClick={saveLoc}
+                disabled={!locName.trim()}
+                className="w-full rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold py-2.5 text-sm transition disabled:opacity-50"
+              >
+                {editingLoc ? 'حفظ التعديلات' : 'إضافة الموقع'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
